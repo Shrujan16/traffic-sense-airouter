@@ -28,3 +28,12 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+
+- Server functions live in `src/lib/*.functions.ts`; AI gateway code lives in `src/lib/ai/*.server.ts`. Never create `src/server/**` files imported by client code — the import-protection plugin blocks that path in the browser bundle.
+- Leaflet components (`MapView`, `LocationPicker`) are loaded with `React.lazy` behind `<ClientOnly>`; never import them statically from a route, because Leaflet touches `window` at import time and breaks SSR.
+- Incident photos go to the private `incident-images` bucket under `<userId>/…`; `incidents.image_url` stores the storage path and the UI shows it through signed URLs, because the workspace blocks public buckets.
+- Vote counters and auto-clear status on `incidents` are maintained only by DB triggers fed by the `cast_vote` RPC; a trigger resets counter columns on ordinary owner updates so they can't be forged.
+- Report submission inserts first with the rule-based estimate (`ruleBasedEstimate`), then overwrites it with the AI analysis, so the incident appears on the live map instantly and still has an explanation if AI fails.
+- Overlays (dialogs, drawers, selects, menus) use `z-[1300]` so they sit above Leaflet controls (z 1000) and the sticky navbar (z 1100).
