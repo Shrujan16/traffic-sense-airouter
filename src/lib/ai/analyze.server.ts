@@ -25,6 +25,24 @@ export interface AnalyzeInput {
   lat: number;
   lng: number;
   image?: { data: Uint8Array; mediaType: string } | null;
+  /** Community-confirmed past reports used as worked examples. */
+  references?: ReferenceReport[];
+  /** Live Google traffic on nearby main roads. */
+  liveTraffic?: { name: string; delayMin: number; usualMin: number; distanceM: number }[];
+}
+
+export interface ReferenceReport {
+  type: string;
+  location: string;
+  distanceKm: number;
+  description: string;
+  confirmedCause: string | null;
+  confirmations: number;
+  status: string;
+  /** Real minutes from report until the community marked it cleared. */
+  actualClearanceMinutes: number | null;
+  estimatedDelayMinutes: number;
+  photo?: { data: Uint8Array; mediaType: string } | null;
 }
 
 const INSTRUCTIONS = `You are TrafficSense AI, a traffic analyst for Indian cities (mainly Bengaluru).
@@ -36,7 +54,9 @@ Rules:
 - estimated_delay_minutes: realistic extra minutes a commuter loses (1-120).
 - estimated_clearance_minutes: realistic minutes until the cause is cleared (5-720). Construction can take hours.
 - advice: one practical sentence (alternate road, timing, or transit).
-- If a photo is attached, use it to verify and refine the cause. If the photo contradicts the reported type, say what the photo shows.`;
+- If a photo is attached, use it to verify and refine the cause. If the photo contradicts the reported type, say what the photo shows.
+- You may be given SIMILAR CONFIRMED REPORTS from the community, with their real outcomes (actual clearance time, confirmed cause) and sometimes their photos. Treat them as worked examples: match their wording of causes when the situation is the same, and calibrate delay and clearance on their ACTUAL clearance times rather than guesses. Never copy a past report's location into this one.
+- You may be given LIVE TRAFFIC on nearby main roads from Google. Use it to judge how bad the delay really is right now; if nearby roads are moving well, keep the delay modest.`;
 
 const clamp = (n: number, min: number, max: number) => Math.round(Math.min(max, Math.max(min, Number.isFinite(n) ? n : min)));
 
@@ -65,6 +85,30 @@ export async function analyzeIncident(input: AnalyzeInput): Promise<{ analysis: 
       { type: "text"; text: string } | { type: "image"; image: Uint8Array; mediaType: string }
     > = [{ type: "text", text }];
     if (input.image) content.push({ type: "image", image: input.image.data, mediaType: input.image.mediaType });
+
+    const refs = input.references ?? [];
+    if (refs.length) {
+      content.push({ type: "text", text: `SIMILAR CONFIRMED REPORTS (${refs.length}):` });
+      refs.forEach((r, i) => {
+        const outcome = r.actualClearanceMinutes != null
+          ? `actually cleared after ${r.actualClearanceMinutes} min`
+          : `still active, confirmed by ${r.confirmations} people`;
+        content.push({
+          type: "text",
+          text: `#${i + 1} ${r.type.replace("_", " ")} at ${r.location} (${r.distanceKm.toFixed(1)} km away): "${r.description}". Confirmed cause: ${r.confirmedCause ?? "unknown"}. Estimated delay was ${r.estimatedDelayMinutes} min; ${outcome}.${r.photo ? " Photo:" : ""}`,
+        });
+        if (r.photo) content.push({ type: "image", image: r.photo.data, mediaType: r.photo.mediaType });
+      });
+    }
+    const traffic = input.liveTraffic ?? [];
+    if (traffic.length) {
+      content.push({
+        type: "text",
+        text: `LIVE TRAFFIC NEARBY (Google): ${traffic
+          .map((t) => `${t.name}: ${t.delayMin > 0 ? `+${t.delayMin} min slower than usual` : "moving normally"} (usual ${t.usualMin} min, ${Math.round(t.distanceM)} m from the incident)`)
+          .join("; ")}`,
+      });
+    }
 
     const result = streamText({
       model: provider.responses(MODEL),

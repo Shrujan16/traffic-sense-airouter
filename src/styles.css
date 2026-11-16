@@ -6,7 +6,6 @@
 @source "../src";
 @import "tw-animate-css";
 @import "leaflet/dist/leaflet.css";
-@import "leaflet.markercluster/dist/MarkerCluster.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -335,3 +334,24 @@
 .leaflet-control-attribution {
   font-size: 10px;
 }
+
+/* Google Maps overlays */
+.ts-gm-anchor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  outline: none;
+}
+.ts-gm-anchor:focus-visible .ts-marker__dot,
+.ts-gm-anchor:focus-visible .ts-cluster {
+  box-shadow: 0 0 0 4px var(--teal);
+}
+.ts-gm-anchor .ts-marker {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+.ts-gm-anchor .ts-marker__ring { inset: 4px; }
+.gm-style { font-family: var(--font-sans); }

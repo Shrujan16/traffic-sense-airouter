@@ -51,6 +51,9 @@ export type Database = {
           ai_advice: string | null
           ai_explanation: string | null
           ai_likely_cause: string | null
+          ai_reference_count: number
+          ai_source: string | null
+          cleared_at: string | null
           cleared_count: number
           created_at: string
           description: string
@@ -74,6 +77,9 @@ export type Database = {
           ai_advice?: string | null
           ai_explanation?: string | null
           ai_likely_cause?: string | null
+          ai_reference_count?: number
+          ai_source?: string | null
+          cleared_at?: string | null
           cleared_count?: number
           created_at?: string
           description?: string
@@ -97,6 +103,9 @@ export type Database = {
           ai_advice?: string | null
           ai_explanation?: string | null
           ai_likely_cause?: string | null
+          ai_reference_count?: number
+          ai_source?: string | null
+          cleared_at?: string | null
           cleared_count?: number
           created_at?: string
           description?: string
@@ -136,6 +145,54 @@ export type Database = {
         }
         Relationships: []
       }
+      traffic_corridors: {
+        Row: {
+          distance_m: number
+          duration_s: number
+          encoded_polyline: string
+          id: string
+          name: string
+          speed_intervals: Json
+          static_duration_s: number
+          updated_at: string
+        }
+        Insert: {
+          distance_m?: number
+          duration_s?: number
+          encoded_polyline?: string
+          id: string
+          name: string
+          speed_intervals?: Json
+          static_duration_s?: number
+          updated_at?: string
+        }
+        Update: {
+          distance_m?: number
+          duration_s?: number
+          encoded_polyline?: string
+          id?: string
+          name?: string
+          speed_intervals?: Json
+          static_duration_s?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      traffic_refresh_lock: {
+        Row: {
+          id: number
+          locked_until: string
+        }
+        Insert: {
+          id: number
+          locked_until?: string
+        }
+        Update: {
+          id?: number
+          locked_until?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -144,6 +201,10 @@ export type Database = {
       cast_vote: {
         Args: { _incident_id: string; _vote_type: string }
         Returns: string
+      }
+      claim_traffic_refresh: {
+        Args: { _max_age_seconds?: number }
+        Returns: boolean
       }
       refresh_incident_counts: {
         Args: { _incident_id: string }

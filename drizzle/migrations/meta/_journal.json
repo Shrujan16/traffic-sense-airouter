@@ -8,6 +8,13 @@
       "when": 1794632030315,
       "tag": "0000_trafficsense_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794839756793,
+      "tag": "0001_live_traffic_and_ai_learning",
+      "breakpoints": true
     }
   ]
 }

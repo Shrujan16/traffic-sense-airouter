@@ -28,21 +28,103 @@ export function offset(from: LatLng, distance: number, bearing: number): LatLng 
   return [toDeg(φ2), toDeg(λ2)];
 }
 
-function hashBearing(seed: string) {
+export function hashBearing(seed: string) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   return h % 180;
 }
 
+export interface RouteStep {
+  instruction: string;
+  distanceM: number;
+  maneuver: string | null;
+}
+
 export interface SuggestedRoute {
   path: LatLng[];
+  /** The route that passes through the incident, for comparison (Google routes only). */
+  throughPath?: LatLng[] | undefined;
   start: LatLng;
   end: LatLng;
   distanceKm: number;
   altMinutes: number;
   directMinutes: number;
   timeSavedMinutes: number;
-  source: "road" | "estimate";
+  /** Typical (no-traffic) minutes for the detour, when known. */
+  usualMinutes?: number | undefined;
+  steps?: RouteStep[] | undefined;
+  source: "google" | "road" | "estimate";
+}
+
+/** Initial compass bearing in degrees from `a` to `b`. */
+export function bearing(a: LatLng, b: LatLng) {
+  const φ1 = toRad(a[0]);
+  const φ2 = toRad(b[0]);
+  const Δλ = toRad(b[1] - a[1]);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+/** Decodes a Google encoded polyline into [lat, lng] pairs. */
+export function decodePolyline(encoded: string): LatLng[] {
+  const points: LatLng[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    for (const axis of [0, 1] as const) {
+      let result = 0;
+      let shift = 0;
+      let b: number;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20 && index < encoded.length);
+      const delta = result & 1 ? ~(result >> 1) : result >> 1;
+      if (axis === 0) lat += delta;
+      else lng += delta;
+    }
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
+}
+
+/** Shortest distance in metres from `p` to a polyline (local flat-earth approximation). */
+export function distanceToPath(p: LatLng, path: LatLng[]): number {
+  if (path.length === 0) return Infinity;
+  if (path.length === 1) return haversine(p, path[0]!);
+  const kx = Math.cos(toRad(p[0])) * 111_320;
+  const ky = 110_540;
+  let best = Infinity;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1]!;
+    const b = path[i]!;
+    const ax = (a[1] - p[1]) * kx;
+    const ay = (a[0] - p[0]) * ky;
+    const bx = (b[1] - p[1]) * kx;
+    const by = (b[0] - p[0]) * ky;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2));
+    const cx = ax + t * dx;
+    const cy = ay + t * dy;
+    best = Math.min(best, Math.hypot(cx, cy));
+  }
+  return best;
+}
+
+/** Bearing of the polyline segment nearest to `p`, if within `maxDistance` metres. */
+export function nearestSegmentBearing(p: LatLng, path: LatLng[], maxDistance: number): { bearing: number; distance: number } | null {
+  let best: { bearing: number; distance: number } | null = null;
+  for (let i = 1; i < path.length; i++) {
+    const seg = [path[i - 1]!, path[i]!];
+    const d = distanceToPath(p, seg);
+    if (d <= maxDistance && (!best || d < best.distance)) best = { bearing: bearing(seg[0]!, seg[1]!), distance: d };
+  }
+  return best;
 }
 
 /** Smooth arc that bends around the incident — used when road routing is unavailable. */
